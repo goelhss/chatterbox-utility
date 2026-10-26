@@ -63,6 +63,8 @@ Omit `-o` to keep the MP3 in the local `output/` cache. `Chapter 1.txt` becomes 
 
 ## Moving an existing installation
 
-Copy `recordings/`, `books/`, `models/`, and `output/` to the new `~/utils/chatterbox` directory, preserving model-cache symlinks. Copy `tools/web-login.json` if you want the same web login. Do **not** copy `.venv/`, `tools/python/`, or cached Mac binaries; run the setup script on the new machine. The model download step reuses a complete copied cache.
+For the smallest move, copy only `recordings/` into `~/utils/chatterbox/`. This keeps your saved voice references and approvals. Then run the setup script on the new machine; it downloads the model and builds a new Python environment.
+
+The other data is optional: `models/` saves a model download, `books/` keeps GUI book queues and progress, and `output/` keeps earlier MP3s and cached segments. Copy `books/` together with its referenced `output/` files if you want completed chapters to remain marked ready. Copy `tools/web-login.json` only if you want the same login; otherwise a new one is generated. Do not copy `.venv/` or Mac binaries.
 
 Personal recordings, approvals, book text/progress, models, logs, credentials, and audio are excluded by `.gitignore`. Review `git status --short` before publishing changes. This repository contains utility code and setup scripts; upstream Chatterbox is downloaded separately under `tools/chatterbox/` and retains its own license.
