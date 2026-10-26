@@ -4,6 +4,7 @@ import argparse
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import hashlib
 from pathlib import Path
+import re
 import subprocess
 import sys
 import time
@@ -43,11 +44,21 @@ def plan_book(book_file, output_dir):
     return jobs
 
 
+def select_chapters(jobs, chapter_range):
+    if chapter_range is None:
+        return jobs
+    match = re.fullmatch(r'([1-9]\d*)-([1-9]\d*)', chapter_range)
+    if not match:
+        raise ValueError('Use a chapter range such as 1-4 or 5-8')
+    first, last = map(int, match.groups())
+    if first > last or last > len(jobs):
+        raise ValueError(f'Chapter range {chapter_range} is outside 1-{len(jobs)}')
+    return jobs[first - 1:last]
+
+
 def run_one(source, destination, voice, log_dir):
-    if destination.exists():
-        if destination.stat().st_size == 0:
-            return source.name, 'FAILED: empty output already exists'
-        return source.name, 'already exists; skipped (check this MP3 before relying on it)'
+    if destination.exists() or destination.is_symlink():
+        return source.name, f'FAILED: output already exists: {destination}'
     log = log_dir / f'{source.stem}.log'
     command = [sys.executable, str(ROOT / 'tools' / 'narrate.py'),
                '--voice', voice, '--text', str(source), '--whole-chapter',
@@ -68,6 +79,8 @@ def main(argv=None):
     parser.add_argument('--voice', help='Override default_voice.txt')
     parser.add_argument('-n', '--jobs', type=int, default=2,
                         help='Concurrent chapters; each loads its own model (default: 2)')
+    parser.add_argument('-chapters', '--chapters', metavar='START-END',
+                        help='Convert only this inclusive chapter range, e.g. 1-4')
     parser.add_argument('--dry-run', action='store_true')
     args = parser.parse_args(argv)
     if args.jobs < 1:
@@ -78,11 +91,18 @@ def main(argv=None):
     try:
         voice = voice_name(args.voice)
         output_dir = output_target(args.output)
-        jobs = plan_book(book_file, output_dir)
+        all_jobs = plan_book(book_file, output_dir)
+        jobs = select_chapters(all_jobs, args.chapters)
     except (ValueError, OSError, UnicodeError) as exc:
         parser.error(str(exc))
-    print(f'{len(jobs)} chapter(s); up to {min(args.jobs, len(jobs))} at once')
-    if len(jobs) == 1:
+    existing = [destination for _, destination, _, _ in jobs
+                if destination.exists() or destination.is_symlink()]
+    if existing:
+        parser.error('Selected output MP3 already exists; remove it manually before rerunning:\n'
+                     + '\n'.join(str(path) for path in existing))
+    print(f'{len(jobs)} of {len(all_jobs)} chapter(s) selected; '
+          f'up to {min(args.jobs, len(jobs))} at once')
+    if len(all_jobs) == 1:
         print("Only one chapter was detected; check the book's headings before converting.")
     for _, destination, _, title in jobs:
         print(f'{title} -> {destination}')
@@ -106,8 +126,10 @@ def main(argv=None):
             failures += status.startswith('FAILED')
     if not failures:
         playlist = output_dir / 'chapters.m3u'
-        playlist.write_text('#EXTM3U\n' + ''.join(f'{destination.name}\n'
-                            for _, destination, _, _ in jobs), encoding='utf-8')
+        available = [destination for _, destination, _, _ in all_jobs
+                     if destination.is_file() and destination.stat().st_size > 0]
+        playlist.write_text('#EXTM3U\n' + ''.join(f'{path.name}\n' for path in available),
+                            encoding='utf-8')
         print(f'Ordered playlist: {playlist}')
     print(f'MP3 folder: {output_dir}')
     print(f'Progress logs: {log_dir}')
