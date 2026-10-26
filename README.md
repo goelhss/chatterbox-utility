@@ -61,16 +61,21 @@ scripts/ubuntu/convert.sh --voice VoiceName --text '/path/Chapter 1.txt' --whole
 
 Omit `-o` to keep the MP3 in the local `output/` cache. `Chapter 1.txt` becomes `Chapter 1.mp3`; `--chapter NAME` overrides the name. `-o` will not overwrite an existing file. Conversion progress is printed in the terminal. The GUI can also load a whole book or chapter files and resume saved chapter progress.
 
-### Convert separate chapters concurrently
+### Convert a whole book into chapter MP3s
 
-Put each chapter in its own `.txt` file, then run:
+Put the name of an already approved saved voice in the local `default_voice.txt` file (one name, no quotes). This file stays on your machine and is ignored by Git. You can also pass `--voice NAME` to override it.
+
+For `~/h2g2g/book1.txt`, preview the detected chapters first:
 
 ```sh
-scripts/ubuntu/convert-chapters.sh --voice VoiceName --input-dir '/path/to/chapters' --jobs 2
-# On Mac, use scripts/mac/convert-chapters.sh with the same options.
+printf '%s\n' 'YourSavedVoiceName' > ~/utils/chatterbox/default_voice.txt
+scripts/ubuntu/convert-chapters.sh --text ~/h2g2g/book1.txt \
+  --output ~/h2g2g/book1 -n 2 --dry-run
 ```
 
-Each chapter produces a separate MP3 in `~/utils/chatterbox/output/chapters/`; use `--output-dir '/another/folder'` to change that. `--dry-run` previews filenames without converting. Each chapter has its own progress log under `logs/`. Existing MP3s are skipped without being overwritten; check them before relying on them. Each concurrent job loads a copy of the model, so start with two jobs and increase only if the machine has enough RAM. This command takes separate chapter files; splitting a partially converted whole-book file changes its cache identity. To resume a cancelled whole-file conversion, rerun the same original command with the same voice and unchanged text.
+Remove `--dry-run` to convert. `--output` is always a folder; the script creates it if needed. It writes `chapter1.mp3`, `chapter2.mp3`, and so on, plus `chapters.m3u` to preserve listening order when there are ten or more chapters. On Mac, use `scripts/mac/convert-chapters.sh` with the same options.
+
+The command recognizes the same standalone headings as the GUI, such as `Chapter 1`, `Chapter IV`, and `CHAPTER ONE`. If the preview shows one chapter, the book's headings were not recognized and there is no parallel speedup. `-n 2` (or `--jobs 2`) converts at most two chapters at once; `-n 4` converts at most four. Each job loads its own model, so increase the number only when RAM allows. Progress logs go under `logs/`; completed MP3s are skipped on rerun. Splitting a partially converted whole-book file changes its cache identity. To resume the original whole-file conversion, rerun its exact command with the same voice and unchanged text.
 
 To review possible cleanup after a cancelled or completed conversion, run `scripts/ubuntu/cleanup-preview.sh` (or `scripts/mac/cleanup-preview.sh`). It lists MP3s, cached WAV segment counts, assembled WAVs, and temporary files, and **never deletes anything**. Incomplete segment caches can be reused by rerunning the same original command; verify a final MP3 before considering removal of its cache.
 

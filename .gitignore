@@ -24,3 +24,5 @@ __pycache__/
 *.epub
 *.txt
 !requirements-app.txt
+default_voice.txt
+*.m3u
