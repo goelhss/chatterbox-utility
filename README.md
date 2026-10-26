@@ -9,7 +9,7 @@ Install at `~/utils/chatterbox` on either Ubuntu or macOS. The setup scripts dow
 ```sh
 mkdir -p ~/utils
 cd ~/utils
-git clone https://github.com/goelhss/chatterbox-utility.git chatterbox
+git clone git@github.com:goelhss/chatterbox-utility.git chatterbox
 cd chatterbox
 scripts/ubuntu/setup.sh
 scripts/ubuntu/start.sh
@@ -38,7 +38,7 @@ For a fresh installation in an empty `~/utils/chatterbox` location:
 ```sh
 mkdir -p ~/utils
 cd ~/utils
-git clone https://github.com/goelhss/chatterbox-utility.git chatterbox
+git clone git@github.com:goelhss/chatterbox-utility.git chatterbox
 cd chatterbox
 scripts/mac/setup.sh
 scripts/mac/start.sh
@@ -75,7 +75,16 @@ scripts/ubuntu/convert-chapters.sh --text ~/h2g2g/book1.txt \
 
 Remove `--dry-run` to convert. `--output` is always a folder; the script creates it if needed. It writes `chapter1.mp3`, `chapter2.mp3`, and so on, plus `chapters.m3u` to preserve listening order when there are ten or more chapters. On Mac, use `scripts/mac/convert-chapters.sh` with the same options.
 
-The command recognizes the same standalone headings as the GUI, such as `Chapter 1`, `Chapter IV`, and `CHAPTER ONE`. If the preview shows one chapter, the book's headings were not recognized and there is no parallel speedup. `-n 2` (or `--jobs 2`) converts at most two chapters at once; `-n 4` converts at most four. Each job loads its own model, so increase the number only when RAM allows. Progress logs go under `logs/`; completed MP3s are skipped on rerun. Splitting a partially converted whole-book file changes its cache identity. To resume the original whole-file conversion, rerun its exact command with the same voice and unchanged text.
+To convert only chapters 5 through 8, add `-chapters 5-8` (or `--chapters 5-8`) to the command:
+
+```sh
+scripts/ubuntu/convert-chapters.sh --text ~/h2g2g/book1.txt \
+  --output ~/h2g2g/book1 -chapters 5-8 -n 2
+```
+
+The range is inclusive and uses the chapter numbers shown in the preview; output names keep those numbers. For example, `-chapters 5-8` writes `chapter5.mp3` through `chapter8.mp3`. The playlist lists all existing, nonempty chapter MP3s in book order after each successful run. If any selected MP3 already exists, the command errors before conversion, including with `--dry-run`; delete that MP3 manually before retrying.
+
+The command recognizes the same standalone headings as the GUI, such as `Chapter 1`, `Chapter IV`, and `CHAPTER ONE`. Opening text before the first heading is numbered as a chapter in the preview. If the preview shows one chapter, the book's headings were not recognized and there is no parallel speedup. `-n 2` (or `--jobs 2`) converts at most two chapters at once; `-n 4` converts at most four. Each job loads its own model, so increase the number only when RAM allows. Progress logs go under `logs/`. Splitting a partially converted whole-book file changes its cache identity. To resume the original whole-file conversion, rerun its exact command with the same voice and unchanged text.
 
 To review possible cleanup after a cancelled or completed conversion, run `scripts/ubuntu/cleanup-preview.sh` (or `scripts/mac/cleanup-preview.sh`). It lists MP3s, cached WAV segment counts, assembled WAVs, and temporary files, and **never deletes anything**. Incomplete segment caches can be reused by rerunning the same original command; verify a final MP3 before considering removal of its cache.
 
