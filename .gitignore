@@ -1,0 +1,26 @@
+# Local runtime and private user data
+.venv/
+models/
+recordings/
+books/
+output/
+logs/
+tools/chatterbox/
+tools/tmp/
+tools/numba-cache/
+tools/uv-cache/
+tools/python/
+tools/web-login.json
+__pycache__/
+*.py[cod]
+.DS_Store
+*.wav
+*.mp3
+*.m4a
+*.flac
+*.ogg
+*.opus
+*.pdf
+*.epub
+*.txt
+!requirements-app.txt
