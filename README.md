@@ -9,7 +9,7 @@ Install at `~/utils/chatterbox` on either Ubuntu or macOS. The setup scripts dow
 ```sh
 mkdir -p ~/utils
 cd ~/utils
-git clone git@github.com:goelhss/chatterbox-utility.git chatterbox
+git clone https://github.com/goelhss/chatterbox-utility.git chatterbox
 cd chatterbox
 scripts/ubuntu/setup.sh
 scripts/ubuntu/start.sh
@@ -33,14 +33,18 @@ A GPU driver is an operating-system prerequisite; installing one may require sud
 
 ## macOS
 
+For a fresh installation in an empty `~/utils/chatterbox` location:
+
 ```sh
 mkdir -p ~/utils
 cd ~/utils
-git clone git@github.com:goelhss/chatterbox-utility.git chatterbox
+git clone https://github.com/goelhss/chatterbox-utility.git chatterbox
 cd chatterbox
 scripts/mac/setup.sh
 scripts/mac/start.sh
 ```
+
+If you already have the older standalone utility at this path, keep its data in place and install this repository in a separate temporary directory first; copy only the public scripts and tools into the existing utility. Then run `scripts/mac/setup.sh` there.
 
 The Mac launchers use `caffeinate` to prevent idle sleep while running. Apple MPS is selected when available.
 
