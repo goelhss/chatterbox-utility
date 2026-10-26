@@ -61,6 +61,17 @@ scripts/ubuntu/convert.sh --voice VoiceName --text '/path/Chapter 1.txt' --whole
 
 Omit `-o` to keep the MP3 in the local `output/` cache. `Chapter 1.txt` becomes `Chapter 1.mp3`; `--chapter NAME` overrides the name. `-o` will not overwrite an existing file. Conversion progress is printed in the terminal. The GUI can also load a whole book or chapter files and resume saved chapter progress.
 
+### Convert separate chapters concurrently
+
+Put each chapter in its own `.txt` file, then run:
+
+```sh
+scripts/ubuntu/convert-chapters.sh --voice VoiceName --input-dir '/path/to/chapters' --jobs 2
+# On Mac, use scripts/mac/convert-chapters.sh with the same options.
+```
+
+Each chapter produces a separate MP3 in `~/utils/chatterbox/output/chapters/`; use `--output-dir '/another/folder'` to change that. `--dry-run` previews filenames without converting. Each chapter has its own progress log under `logs/`. Existing MP3s are skipped without being overwritten; check them before relying on them. Each concurrent job loads a copy of the model, so start with two jobs and increase only if the machine has enough RAM. This command takes separate chapter files; splitting a partially converted whole-book file changes its cache identity. To resume a cancelled whole-file conversion, rerun the same original command with the same voice and unchanged text.
+
 ## Moving an existing installation
 
 For the smallest move, copy only `recordings/` into `~/utils/chatterbox/`. This keeps your saved voice references and approvals. Then run the setup script on the new machine; it downloads the model and builds a new Python environment.
