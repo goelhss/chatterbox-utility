@@ -56,7 +56,7 @@ class ConvertChaptersTest(unittest.TestCase):
                 self.converter.main(self.args + ['-chapters', '1-2'])
             self.assertEqual(error.exception.code, 2)
             self.assertIn('chapter2.mp3', stderr.getvalue())
-            self.assertIn('delete it manually', stderr.getvalue())
+            self.assertIn('remove it manually', stderr.getvalue())
             run.assert_not_called()
         self.assertFalse((self.output / 'chapter1.mp3').exists())
         self.assertEqual((self.output / 'chapter2.mp3').read_bytes(), b'existing')

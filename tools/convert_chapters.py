@@ -44,19 +44,21 @@ def plan_book(book_file, output_dir):
     return jobs
 
 
-def chapter_range(raw):
-    match = re.fullmatch(r'([1-9][0-9]*)-([1-9][0-9]*)', raw)
+def select_chapters(jobs, chapter_range):
+    if chapter_range is None:
+        return jobs
+    match = re.fullmatch(r'([1-9]\d*)-([1-9]\d*)', chapter_range)
     if not match:
-        raise argparse.ArgumentTypeError('use START-END with positive chapter numbers, for example 1-4')
-    start, end = map(int, match.groups())
-    if start > end:
-        raise argparse.ArgumentTypeError('START must not exceed END')
-    return start, end
+        raise ValueError('Use a chapter range such as 1-4 or 5-8')
+    first, last = map(int, match.groups())
+    if first > last or last > len(jobs):
+        raise ValueError(f'Chapter range {chapter_range} is outside 1-{len(jobs)}')
+    return jobs[first - 1:last]
 
 
 def run_one(source, destination, voice, log_dir):
-    if destination.exists():
-        return source.name, f'FAILED: output already exists: {destination}; delete it manually to retry'
+    if destination.exists() or destination.is_symlink():
+        return source.name, f'FAILED: output already exists: {destination}'
     log = log_dir / f'{source.stem}.log'
     command = [sys.executable, str(ROOT / 'tools' / 'narrate.py'),
                '--voice', voice, '--text', str(source), '--whole-chapter',
@@ -77,8 +79,8 @@ def main(argv=None):
     parser.add_argument('--voice', help='Override default_voice.txt')
     parser.add_argument('-n', '--jobs', type=int, default=2,
                         help='Concurrent chapters; each loads its own model (default: 2)')
-    parser.add_argument('-chapters', '--chapters', type=chapter_range, metavar='START-END',
-                        help='Inclusive chapter numbers to convert, for example 1-4 (default: all)')
+    parser.add_argument('-chapters', '--chapters', metavar='START-END',
+                        help='Convert only this inclusive chapter range, e.g. 1-4')
     parser.add_argument('--dry-run', action='store_true')
     args = parser.parse_args(argv)
     if args.jobs < 1:
@@ -90,20 +92,16 @@ def main(argv=None):
         voice = voice_name(args.voice)
         output_dir = output_target(args.output)
         all_jobs = plan_book(book_file, output_dir)
+        jobs = select_chapters(all_jobs, args.chapters)
     except (ValueError, OSError, UnicodeError) as exc:
         parser.error(str(exc))
-    if args.chapters:
-        start, end = args.chapters
-        if end > len(all_jobs):
-            parser.error(f'--chapters {start}-{end} exceeds the {len(all_jobs)} detected chapter(s)')
-        jobs = all_jobs[start - 1:end]
-    else:
-        jobs = all_jobs
-    existing = [destination for _, destination, _, _ in jobs if destination.exists()]
+    existing = [destination for _, destination, _, _ in jobs
+                if destination.exists() or destination.is_symlink()]
     if existing:
-        parser.error('Chapter MP3 already exists; delete it manually before rerunning:\n' +
-                     '\n'.join(str(path) for path in existing))
-    print(f'{len(jobs)} selected chapter(s) of {len(all_jobs)}; up to {min(args.jobs, len(jobs))} at once')
+        parser.error('Selected output MP3 already exists; remove it manually before rerunning:\n'
+                     + '\n'.join(str(path) for path in existing))
+    print(f'{len(jobs)} of {len(all_jobs)} chapter(s) selected; '
+          f'up to {min(args.jobs, len(jobs))} at once')
     if len(all_jobs) == 1:
         print("Only one chapter was detected; check the book's headings before converting.")
     for _, destination, _, title in jobs:
@@ -128,9 +126,9 @@ def main(argv=None):
             failures += status.startswith('FAILED')
     if not failures:
         playlist = output_dir / 'chapters.m3u'
-        playlist.write_text('#EXTM3U\n' + ''.join(f'{destination.name}\n'
-                            for _, destination, _, _ in all_jobs
-                            if destination.is_file() and destination.stat().st_size > 0),
+        available = [destination for _, destination, _, _ in all_jobs
+                     if destination.is_file() and destination.stat().st_size > 0]
+        playlist.write_text('#EXTM3U\n' + ''.join(f'{path.name}\n' for path in available),
                             encoding='utf-8')
         print(f'Ordered playlist: {playlist}')
     print(f'MP3 folder: {output_dir}')
