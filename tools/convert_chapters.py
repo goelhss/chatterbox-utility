@@ -92,20 +92,28 @@ def main(argv=None):
         voice = voice_name(args.voice)
         output_dir = output_target(args.output)
         all_jobs = plan_book(book_file, output_dir)
-        jobs = select_chapters(all_jobs, args.chapters)
+        selected = select_chapters(all_jobs, args.chapters)
     except (ValueError, OSError, UnicodeError) as exc:
         parser.error(str(exc))
-    existing = [destination for _, destination, _, _ in jobs
-                if destination.exists() or destination.is_symlink()]
-    if existing:
-        parser.error('Selected output MP3 already exists; remove it manually before rerunning:\n'
-                     + '\n'.join(str(path) for path in existing))
-    print(f'{len(jobs)} of {len(all_jobs)} chapter(s) selected; '
-          f'up to {min(args.jobs, len(jobs))} at once')
+    jobs = []
+    skipped = []
+    for job in selected:
+        destination = job[1]
+        if destination.exists() or destination.is_symlink():
+            if not destination.is_file() or destination.stat().st_size == 0:
+                parser.error(f'Selected output is empty or not a file: {destination}')
+            skipped.append(job)
+        else:
+            jobs.append(job)
+    print(f'{len(selected)} of {len(all_jobs)} chapter(s) selected; '
+          f'{len(skipped)} already exist, {len(jobs)} to convert')
+    if jobs:
+        print(f'Up to {min(args.jobs, len(jobs))} at once')
     if len(all_jobs) == 1:
         print("Only one chapter was detected; check the book's headings before converting.")
-    for _, destination, _, title in jobs:
-        print(f'{title} -> {destination}')
+    for _, destination, _, title in selected:
+        status = ' (already exists; skipped)' if destination.exists() else ''
+        print(f'{title} -> {destination}{status}')
     if args.dry_run:
         return 0
     for source, _, chapter_text, _ in jobs:
@@ -114,16 +122,17 @@ def main(argv=None):
             parser.error(f'Cached chapter text differs: {source}')
         source.write_text(chapter_text, encoding='utf-8')
     output_dir.mkdir(parents=True, exist_ok=True)
-    log_dir = ROOT / 'logs' / f'chapters-{int(time.time())}-{uuid.uuid4().hex[:6]}'
-    log_dir.mkdir(parents=True, exist_ok=False)
     failures = 0
-    with ThreadPoolExecutor(max_workers=args.jobs) as pool:
-        futures = [pool.submit(run_one, source, destination, voice, log_dir)
-                   for source, destination, _, _ in jobs]
-        for future in as_completed(futures):
-            name, status = future.result()
-            print(f'{name}: {status}', flush=True)
-            failures += status.startswith('FAILED')
+    if jobs:
+        log_dir = ROOT / 'logs' / f'chapters-{int(time.time())}-{uuid.uuid4().hex[:6]}'
+        log_dir.mkdir(parents=True, exist_ok=False)
+        with ThreadPoolExecutor(max_workers=args.jobs) as pool:
+            futures = [pool.submit(run_one, source, destination, voice, log_dir)
+                       for source, destination, _, _ in jobs]
+            for future in as_completed(futures):
+                name, status = future.result()
+                print(f'{name}: {status}', flush=True)
+                failures += status.startswith('FAILED')
     if not failures:
         playlist = output_dir / 'chapters.m3u'
         available = [destination for _, destination, _, _ in all_jobs
@@ -132,7 +141,8 @@ def main(argv=None):
                             encoding='utf-8')
         print(f'Ordered playlist: {playlist}')
     print(f'MP3 folder: {output_dir}')
-    print(f'Progress logs: {log_dir}')
+    if jobs:
+        print(f'Progress logs: {log_dir}')
     return 1 if failures else 0
 
 

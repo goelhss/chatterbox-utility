@@ -46,20 +46,49 @@ class ConvertChaptersTest(unittest.TestCase):
                              ['#EXTM3U', 'chapter1.mp3', 'chapter2.mp3',
                               'chapter3.mp3', 'chapter4.mp3'])
 
-    def test_existing_selected_mp3_stops_before_any_chapter_runs(self):
+    def test_existing_selected_mp3_is_skipped_and_missing_chapters_run(self):
         self.output.mkdir()
+        (self.output / 'chapter1.mp3').write_bytes(b'existing first')
         (self.output / 'chapter2.mp3').write_bytes(b'existing')
+        (self.output / 'chapter4.mp3').write_bytes(b'existing fourth')
         with patch.object(self.converter, 'ROOT', self.root), \
              patch.object(self.converter, 'run_one', side_effect=self.fake_conversion) as run:
-            stderr = io.StringIO()
-            with contextlib.redirect_stderr(stderr), self.assertRaises(SystemExit) as error:
+            result, output, _ = self.run_command('-chapters', '1-4')
+            self.assertEqual(result, 0)
+            self.assertIn('3 already exist, 1 to convert', output)
+            self.assertEqual([call.args[1].name for call in run.call_args_list],
+                             ['chapter3.mp3'])
+        self.assertEqual((self.output / 'chapter1.mp3').read_bytes(), b'existing first')
+        self.assertEqual((self.output / 'chapter2.mp3').read_bytes(), b'existing')
+        self.assertEqual((self.output / 'chapter4.mp3').read_bytes(), b'existing fourth')
+        self.assertEqual((self.output / 'chapters.m3u').read_text().splitlines(),
+                         ['#EXTM3U', 'chapter1.mp3', 'chapter2.mp3',
+                          'chapter3.mp3', 'chapter4.mp3'])
+
+    def test_all_selected_mp3s_exist_without_starting_jobs(self):
+        self.output.mkdir()
+        for number in range(1, 5):
+            (self.output / f'chapter{number}.mp3').write_bytes(b'existing')
+        with patch.object(self.converter, 'ROOT', self.root), \
+             patch.object(self.converter, 'run_one') as run:
+            result, output, _ = self.run_command('-chapters', '1-4')
+            self.assertEqual(result, 0)
+            self.assertIn('4 already exist, 0 to convert', output)
+            run.assert_not_called()
+        self.assertEqual((self.output / 'chapters.m3u').read_text().splitlines(),
+                         ['#EXTM3U', 'chapter1.mp3', 'chapter2.mp3',
+                          'chapter3.mp3', 'chapter4.mp3'])
+
+    def test_empty_existing_mp3_is_not_treated_as_complete(self):
+        self.output.mkdir()
+        (self.output / 'chapter2.mp3').touch()
+        with patch.object(self.converter, 'ROOT', self.root), \
+             patch.object(self.converter, 'run_one') as run:
+            with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit) as error:
                 self.converter.main(self.args + ['-chapters', '1-2'])
             self.assertEqual(error.exception.code, 2)
-            self.assertIn('chapter2.mp3', stderr.getvalue())
-            self.assertIn('remove it manually', stderr.getvalue())
             run.assert_not_called()
         self.assertFalse((self.output / 'chapter1.mp3').exists())
-        self.assertEqual((self.output / 'chapter2.mp3').read_bytes(), b'existing')
 
     def test_invalid_ranges_are_rejected(self):
         with patch.object(self.converter, 'ROOT', self.root):
